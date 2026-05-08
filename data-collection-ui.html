@@ -1,0 +1,1191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Data Collection — Lineup Monitor</title>
+<style>
+  :root {
+    --bg: #0f1420;
+    --panel: #161c2c;
+    --panel-2: #1c2438;
+    --border: #2a3349;
+    --border-strong: #3a455f;
+    --text: #e8ecf5;
+    --text-dim: #8a93a8;
+    --text-faint: #5a6478;
+    --accent: #4f8cff;
+    --accent-2: #6aa1ff;
+    --ok: #3ddc97;
+    --warn: #ffb547;
+    --err: #ff5d6c;
+    --conflict: #ffb547;
+    --missing: #ff5d6c;
+    --shadow: 0 6px 24px rgba(0,0,0,0.35);
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif;
+    font-size: 13px;
+    line-height: 1.45;
+  }
+
+  /* ---------- Top bar ---------- */
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 24px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 50;
+  }
+  .brand { display:flex; align-items:center; gap:10px; font-weight:600; letter-spacing:0.2px; }
+  .brand .dot { width:10px; height:10px; border-radius:50%; background:var(--accent); box-shadow:0 0 12px var(--accent); }
+  .brand .sub { color: var(--text-dim); font-weight: 400; margin-left: 8px; font-size: 12px; }
+  .topbar-actions { display:flex; gap:8px; align-items:center; }
+  .pill {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    padding: 6px 12px;
+    border-radius: 20px;
+    color: var(--text-dim);
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .pill:hover { color: var(--text); border-color: var(--border-strong); }
+  .pill.live { color: var(--ok); }
+  .pill.live::before {
+    content: ""; display:inline-block; width:7px; height:7px;
+    background: var(--ok); border-radius:50%; margin-right:6px;
+    animation: pulse 1.6s infinite;
+  }
+  @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: 0.3 } }
+
+  /* ---------- Layout ---------- */
+  .layout { display: grid; grid-template-columns: 280px 1fr; min-height: calc(100vh - 53px); }
+  .sidebar { background: var(--panel); border-right: 1px solid var(--border); padding: 20px; }
+  .main { padding: 20px 24px 60px 24px; overflow-x: hidden; }
+
+  .section-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--text-faint);
+    margin-bottom: 10px;
+    font-weight: 600;
+  }
+
+  /* ---------- Competition filter ---------- */
+  .comp-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 24px; }
+  .comp-item {
+    display:flex; align-items:center; gap:10px;
+    padding: 8px 10px; border-radius: 8px;
+    cursor: pointer; font-size: 13px;
+    color: var(--text-dim);
+    border: 1px solid transparent;
+  }
+  .comp-item:hover { background: var(--panel-2); color: var(--text); }
+  .comp-item.active { background: var(--panel-2); color: var(--text); border-color: var(--border-strong); }
+  .comp-item input { accent-color: var(--accent); }
+  .comp-flag { width: 20px; height: 14px; border-radius: 2px; background: var(--border-strong); display:inline-block; flex-shrink:0; }
+  .comp-count { margin-left:auto; color: var(--text-faint); font-size: 11px; }
+
+  /* ---------- Calendar strip ---------- */
+  .cal-strip {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+  .cal-day {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 10px 8px;
+    text-align: center;
+    cursor: pointer;
+    transition: all .15s;
+    position: relative;
+  }
+  .cal-day:hover { border-color: var(--border-strong); }
+  .cal-day.active {
+    background: linear-gradient(180deg, rgba(79,140,255,0.18), rgba(79,140,255,0.06));
+    border-color: var(--accent);
+  }
+  .cal-day.today::after {
+    content: ""; position: absolute; top: 6px; right: 6px;
+    width: 6px; height: 6px; border-radius:50%; background: var(--accent);
+  }
+  .cal-day .dow { font-size: 10px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 1px; }
+  .cal-day .dom { font-size: 22px; font-weight: 600; margin-top: 2px; }
+  .cal-day .fx-count { font-size: 10px; color: var(--text-dim); margin-top: 4px; }
+  .cal-day.active .fx-count { color: var(--accent-2); }
+
+  /* ---------- Fixture list ---------- */
+  .day-header {
+    display:flex; align-items:baseline; justify-content:space-between;
+    margin-bottom: 14px;
+  }
+  .day-header h2 { margin:0; font-size: 18px; font-weight: 600; }
+  .day-header .meta { color: var(--text-dim); font-size: 12px; }
+
+  .fixture { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 10px; overflow: hidden; }
+  .fixture-head {
+    display: grid;
+    grid-template-columns: 70px 1fr auto auto;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 16px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .fixture-head:hover { background: rgba(255,255,255,0.02); }
+  .fx-time { font-weight: 600; color: var(--text); font-size: 13px; }
+  .fx-time .ko { color: var(--text-dim); font-size: 11px; display:block; }
+  .fx-teams { display:flex; align-items:center; gap:10px; font-weight:500; }
+  .fx-teams .vs { color: var(--text-faint); margin: 0 6px; }
+  .fx-comp-tag {
+    font-size: 11px; color: var(--text-dim);
+    background: var(--panel-2); padding: 3px 8px; border-radius: 4px;
+    border: 1px solid var(--border);
+  }
+  .fx-status { display:flex; align-items:center; gap:8px; font-size: 11px; color: var(--text-dim); }
+  .status-dot { width:8px; height:8px; border-radius:50%; }
+  .status-dot.ok { background: var(--ok); }
+  .status-dot.warn { background: var(--warn); }
+  .status-dot.err { background: var(--err); }
+  .status-dot.pending { background: var(--text-faint); }
+  .chev { transition: transform .2s; color: var(--text-dim); }
+  .fixture.open .chev { transform: rotate(90deg); }
+
+  /* ---------- Fixture body ---------- */
+  .fixture-body { display: none; border-top: 1px solid var(--border); background: var(--panel-2); }
+  .fixture.open .fixture-body { display: block; }
+
+  .body-toolbar {
+    display:flex; justify-content: space-between; align-items: center;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+  }
+  .body-toolbar .left { display:flex; gap: 16px; align-items: center; font-size: 12px; color: var(--text-dim); }
+  .body-toolbar .right { display:flex; gap: 8px; }
+  .legend { display:flex; gap:14px; font-size: 11px; color: var(--text-dim); }
+  .legend span { display:flex; align-items:center; gap:5px; }
+  .legend .swatch { width:10px; height:10px; border-radius: 2px; display:inline-block; }
+  .btn {
+    background: var(--panel-2); border: 1px solid var(--border-strong);
+    color: var(--text); padding: 6px 12px; border-radius: 6px;
+    font-size: 12px; cursor: pointer;
+  }
+  .btn:hover { background: var(--border); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); }
+  .btn.primary:hover { background: var(--accent-2); }
+
+  /* Team panels */
+  .teams-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+  .team-panel { padding: 16px; border-right: 1px solid var(--border); }
+  .team-panel:last-child { border-right: none; }
+  .team-header {
+    display:flex; align-items:center; justify-content:space-between;
+    margin-bottom: 12px;
+  }
+  .team-header h3 { margin:0; font-size: 14px; font-weight:600; }
+  .team-header .home-tag {
+    font-size: 10px; padding: 2px 6px; border-radius: 3px;
+    background: rgba(79,140,255,0.15); color: var(--accent-2);
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .team-header .away-tag {
+    font-size: 10px; padding: 2px 6px; border-radius: 3px;
+    background: rgba(255,181,71,0.15); color: var(--warn);
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+
+  /* Lineup grid: position | X | SR | SS | BG */
+  .lineup-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 12px;
+  }
+  .lineup-table thead th {
+    font-weight: 500;
+    color: var(--text-dim);
+    text-align: left;
+    padding: 8px 6px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 0;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+  .lineup-table thead th.provider { text-align: center; }
+  .lineup-table tbody td {
+    padding: 4px 4px;
+    border-bottom: 1px solid var(--border);
+  }
+  .lineup-table .row-pos { width: 36px; color: var(--text-faint); font-weight: 600; text-align: center; font-size: 11px; }
+  .lineup-table .row-num { width: 28px; color: var(--text-dim); text-align:center; font-variant-numeric: tabular-nums; }
+  .subs-divider td {
+    padding: 12px 4px 6px 4px !important;
+    font-size: 10px;
+    color: var(--text-faint);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border-bottom: 1px solid var(--border) !important;
+    background: transparent;
+  }
+
+  .cell {
+    position: relative;
+    padding: 6px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid transparent;
+    min-height: 28px;
+    display: flex; align-items: center; gap: 6px;
+    font-variant-numeric: tabular-nums;
+    transition: background .12s, border-color .12s;
+  }
+  .cell:hover { background: rgba(255,255,255,0.05); border-color: var(--border-strong); }
+  .cell.conflict { background: rgba(255,181,71,0.10); border-color: rgba(255,181,71,0.4); }
+  .cell.conflict:hover { background: rgba(255,181,71,0.18); }
+  .cell.missing { background: rgba(255,93,108,0.12); border-color: rgba(255,93,108,0.45); color: var(--err); font-style: italic; }
+  .cell.edited::after {
+    content: ""; position: absolute; top: 3px; right: 3px;
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--accent);
+  }
+  .cell .num { color: var(--text-faint); font-size: 11px; min-width: 16px; }
+  .cell .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
+
+  /* Provider column header */
+  .provider-head {
+    display: flex; align-items: center; gap: 4px; justify-content: center;
+  }
+  .provider-head .badge {
+    font-size: 9px; font-weight:700; padding: 1px 4px; border-radius: 3px;
+  }
+  .provider-X .badge { background: #1d9bf0; color: white; }
+  .provider-SR .badge { background: #00b67a; color: white; }
+  .provider-SS .badge { background: #ff5e3a; color: white; }
+  .provider-BG .badge { background: #8a4fff; color: white; }
+
+  /* Dropdown picker */
+  .picker-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.4);
+    z-index: 100;
+    align-items: flex-start; justify-content: center;
+    padding-top: 80px;
+  }
+  .picker-overlay.open { display: flex; }
+  .picker {
+    background: var(--panel);
+    border: 1px solid var(--border-strong);
+    border-radius: 10px;
+    width: 360px;
+    max-height: 70vh;
+    box-shadow: var(--shadow);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  .picker-head { padding: 12px 14px; border-bottom: 1px solid var(--border); }
+  .picker-head .ctx { font-size: 11px; color: var(--text-dim); }
+  .picker-head h4 { margin: 4px 0 0 0; font-size: 14px; }
+  .picker-search {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .picker-search input {
+    width: 100%;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 13px;
+  }
+  .picker-search input:focus { outline: none; border-color: var(--accent); }
+  .picker-list { overflow-y: auto; flex: 1; padding: 4px 0; }
+  .picker-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 14px; cursor: pointer;
+    font-size: 13px;
+  }
+  .picker-row:hover { background: var(--panel-2); }
+  .picker-row .num { color: var(--text-faint); width: 24px; text-align: center; font-variant-numeric: tabular-nums; }
+  .picker-row .pos { color: var(--text-dim); font-size: 11px; width: 36px; }
+  .picker-row.disabled { color: var(--text-faint); opacity: 0.4; cursor: not-allowed; }
+  .picker-actions {
+    border-top: 1px solid var(--border);
+    padding: 8px 14px;
+    display:flex; justify-content: space-between; gap: 8px;
+  }
+
+  /* Audit log */
+  .audit-panel {
+    position: fixed; top: 0; right: -380px;
+    width: 380px; height: 100vh;
+    background: var(--panel);
+    border-left: 1px solid var(--border);
+    transition: right .25s;
+    z-index: 90;
+    display: flex; flex-direction: column;
+  }
+  .audit-panel.open { right: 0; }
+  .audit-head {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  .audit-head h3 { margin:0; font-size: 15px; }
+  .audit-list { overflow-y: auto; flex:1; padding: 8px 0; }
+  .audit-entry {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+  }
+  .audit-entry .when { color: var(--text-faint); font-size: 11px; }
+  .audit-entry .who { color: var(--accent-2); font-weight: 600; }
+  .audit-entry .what { color: var(--text); margin-top: 4px; }
+  .audit-entry .ctx { color: var(--text-dim); font-size: 11px; margin-top: 4px; }
+  .audit-entry del { color: var(--err); text-decoration: line-through; }
+  .audit-entry ins { color: var(--ok); text-decoration: none; }
+
+  .empty-state {
+    text-align: center; padding: 60px 20px; color: var(--text-faint);
+  }
+
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+
+  .summary-bar {
+    display: flex; gap: 18px;
+    background: var(--panel);
+    padding: 10px 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 16px;
+    font-size: 12px;
+  }
+  .summary-bar .stat { display:flex; align-items:center; gap:6px; color: var(--text-dim); }
+  .summary-bar .stat strong { color: var(--text); font-size: 14px; font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <span class="dot"></span>
+    Lineup Monitor
+    <span class="sub">Stage 1 — Data Collection</span>
+  </div>
+  <div class="topbar-actions">
+    <span class="pill live">Live · 4 providers connected</span>
+    <span class="pill" id="audit-toggle">Audit log</span>
+    <span class="pill">henry.newman@sportingrisk.com</span>
+  </div>
+</div>
+
+<div class="layout">
+
+  <!-- Sidebar: competition filter -->
+  <aside class="sidebar">
+    <div class="section-label">Competitions</div>
+    <div class="comp-list" id="comp-list"><!-- filled by JS --></div>
+
+    <div class="section-label">Squad source</div>
+    <div style="font-size:12px; color: var(--text-dim); line-height:1.6;">
+      Squads pulled from <strong style="color:var(--text)">Opta</strong> reference feed, refreshed nightly.
+      Provider lineups arrive as match-day publishes them.
+    </div>
+  </aside>
+
+  <!-- Main pane -->
+  <main class="main">
+
+    <!-- 7-day rolling calendar -->
+    <div class="cal-strip" id="cal-strip"></div>
+
+    <!-- Day summary -->
+    <div class="summary-bar" id="summary-bar"></div>
+
+    <!-- Fixtures for selected day -->
+    <div class="day-header">
+      <h2 id="day-title">—</h2>
+      <span class="meta" id="day-meta"></span>
+    </div>
+
+    <div id="fixtures-list"></div>
+
+  </main>
+</div>
+
+<!-- Player picker modal -->
+<div class="picker-overlay" id="picker-overlay">
+  <div class="picker">
+    <div class="picker-head">
+      <div class="ctx" id="picker-ctx">Liverpool · Provider X · Starter #4</div>
+      <h4>Select player</h4>
+    </div>
+    <div class="picker-search">
+      <input type="text" id="picker-search" placeholder="Search by name or number…" autocomplete="off">
+    </div>
+    <div class="picker-list" id="picker-list"></div>
+    <div class="picker-actions">
+      <button class="btn" id="picker-clear">Clear / mark missing</button>
+      <button class="btn" id="picker-cancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Audit panel -->
+<aside class="audit-panel" id="audit-panel">
+  <div class="audit-head">
+    <h3>Audit log</h3>
+    <span class="pill" id="audit-close">Close</span>
+  </div>
+  <div class="audit-list" id="audit-list"></div>
+</aside>
+
+<script>
+/* =========================================================================
+   MOCK DATA
+   ========================================================================= */
+
+const TODAY = new Date('2026-05-08T00:00:00');
+
+const PROVIDERS = [
+  { code: 'X',  name: 'X (Twitter)',  badge: 'X'  },
+  { code: 'SR', name: 'Sportradar',   badge: 'SR' },
+  { code: 'SS', name: 'SofaScore',    badge: 'SS' },
+  { code: 'BG', name: 'BetGenius',    badge: 'BG' }
+];
+
+// Squads (subset — 18-22 players each, mix of positions)
+function squad(prefix, players) {
+  return players.map((p, i) => ({ num: p[0], name: p[1], pos: p[2] }));
+}
+
+const SQUADS = {
+  'Liverpool': squad('liv', [
+    [1,'Alisson','GK'], [13,'Kelleher','GK'],
+    [66,'Alexander-Arnold','RB'], [26,'Robertson','LB'], [4,'Van Dijk','CB'], [5,'Konaté','CB'],
+    [32,'Matip','CB'], [21,'Tsimikas','LB'], [78,'Quansah','CB'],
+    [3,'Endo','DM'], [6,'Thiago','CM'], [8,'Szoboszlai','CM'], [10,'Mac Allister','CM'],
+    [17,'Jones','CM'], [38,'Gravenberch','CM'], [19,'Elliott','AM'],
+    [7,'Luis Díaz','LW'], [11,'Salah','RW'], [20,'Jota','ST'],
+    [9,'Núñez','ST'], [18,'Gakpo','LW'], [27,'Origi','ST']
+  ]),
+  'Arsenal': squad('ars', [
+    [1,'Raya','GK'], [22,'Ramsdale','GK'],
+    [2,'White','RB'], [4,'Ben White','RB'], [6,'Gabriel','CB'], [12,'Saliba','CB'],
+    [3,'Tierney','LB'], [15,'Kiwior','CB'], [35,'Zinchenko','LB'],
+    [5,'Partey','DM'], [8,'Ødegaard','AM'], [25,'Mosquera','DM'], [29,'Havertz','CM'],
+    [20,'Jorginho','CM'], [21,'Fabio Vieira','AM'],
+    [7,'Saka','RW'], [9,'Jesus','ST'], [11,'Martinelli','LW'], [14,'Nketiah','ST'],
+    [19,'Trossard','LW'], [24,'Nelson','RW']
+  ]),
+  'Manchester City': squad('mci', [
+    [31,'Ederson','GK'], [18,'Ortega','GK'],
+    [2,'Walker','RB'], [3,'Rúben Dias','CB'], [5,'Stones','CB'], [6,'Aké','CB'],
+    [25,'Akanji','CB'], [82,'Lewis','LB'],
+    [16,'Rodri','DM'], [20,'Bernardo Silva','AM'], [17,'De Bruyne','AM'], [8,'Kovačić','CM'],
+    [4,'Phillips','DM'], [80,'Bobb','RW'],
+    [10,'Grealish','LW'], [11,'Doku','LW'], [9,'Haaland','ST'], [19,'Álvarez','ST'],
+    [26,'Foden','AM'], [47,'Foden','AM']
+  ]),
+  'Chelsea': squad('che', [
+    [1,'Sánchez','GK'], [13,'Petrović','GK'],
+    [21,'Chilwell','LB'], [27,'Malo Gusto','RB'], [6,'Thiago Silva','CB'], [5,'Badiashile','CB'],
+    [33,'Disasi','CB'], [3,'Cucurella','LB'], [29,'Colwill','CB'],
+    [25,'Caicedo','DM'], [8,'Enzo Fernández','CM'], [11,'Sterling','RW'], [10,'Mudryk','LW'],
+    [20,'Palmer','AM'], [12,'Ugochukwu','CM'],
+    [9,'Jackson','ST'], [17,'Madueke','RW'], [38,'Nkunku','ST'],
+    [18,'Broja','ST'], [24,'James','RB']
+  ]),
+  'Real Madrid': squad('rma', [
+    [1,'Courtois','GK'], [13,'Lunin','GK'],
+    [2,'Carvajal','RB'], [23,'Mendy','LB'], [22,'Rüdiger','CB'], [4,'Alaba','CB'],
+    [3,'Militão','CB'], [6,'Nacho','CB'],
+    [8,'Kroos','CM'], [10,'Modrić','CM'], [15,'Valverde','CM'], [12,'Camavinga','CM'],
+    [18,'Tchouaméni','DM'], [5,'Bellingham','AM'],
+    [7,'Vinícius Jr','LW'], [11,'Rodrygo','RW'], [21,'Brahim','AM'],
+    [9,'Joselu','ST'], [14,'Joselu','ST'], [24,'Mbappé','ST']
+  ]),
+  'Barcelona': squad('bar', [
+    [1,'Ter Stegen','GK'], [13,'Iñaki Peña','GK'],
+    [2,'Cancelo','RB'], [3,'Balde','LB'], [4,'Araújo','CB'], [15,'Christensen','CB'],
+    [24,'Koundé','CB'], [23,'Iñigo Martínez','CB'],
+    [8,'Pedri','CM'], [21,'De Jong','CM'], [22,'Gündoğan','CM'], [30,'Gavi','CM'],
+    [6,'Romeu','DM'],
+    [7,'Ferran Torres','RW'], [11,'Raphinha','LW'], [9,'Lewandowski','ST'],
+    [14,'João Félix','ST'], [27,'Lamine Yamal','RW'], [16,'Fermín','AM']
+  ]),
+  'Bayern Munich': squad('bay', [
+    [1,'Neuer','GK'], [27,'Ulreich','GK'],
+    [22,'Boey','RB'], [19,'Davies','LB'], [4,'De Ligt','CB'], [2,'Upamecano','CB'],
+    [44,'Kim Min-jae','CB'], [40,'Pavlović','CB'],
+    [6,'Kimmich','CM'], [8,'Goretzka','CM'], [45,'Pavlović','DM'], [42,'Musiala','AM'],
+    [25,'Müller','AM'],
+    [10,'Sané','RW'], [11,'Coman','LW'], [7,'Gnabry','RW'], [9,'Kane','ST'],
+    [17,'Tel','ST'], [13,'Choupo-Moting','ST']
+  ]),
+  'PSG': squad('psg', [
+    [99,'Donnarumma','GK'], [1,'Tenas','GK'],
+    [2,'Hakimi','RB'], [25,'Mendes','LB'], [5,'Marquinhos','CB'], [3,'Skriniar','CB'],
+    [37,'Beraldo','CB'], [26,'Nuno Mendes','LB'],
+    [8,'Fabian Ruiz','CM'], [17,'Vitinha','CM'], [15,'Danilo','DM'], [33,'Zaïre-Emery','CM'],
+    [10,'Dembélé','RW'], [29,'Barcola','LW'], [11,'Asensio','RW'],
+    [9,'Kolo Muani','ST'], [24,'Lee Kang-in','AM'], [19,'Gonçalo Ramos','ST'],
+    [21,'Hernández','LB']
+  ]),
+  'Inter Milan': squad('int', [
+    [1,'Sommer','GK'], [21,'Audero','GK'],
+    [36,'Darmian','RB'], [32,'Dimarco','LB'], [6,'De Vrij','CB'], [15,'Acerbi','CB'],
+    [95,'Bastoni','CB'], [2,'Dumfries','RB'],
+    [23,'Barella','CM'], [20,'Çalhanoğlu','DM'], [22,'Mkhitaryan','CM'], [16,'Frattesi','CM'],
+    [10,'Lautaro Martínez','ST'], [9,'Thuram','ST'], [11,'Cuadrado','RW'],
+    [70,'Sánchez','ST'], [99,'Arnautović','ST']
+  ]),
+  'AC Milan': squad('mil', [
+    [16,'Maignan','GK'], [83,'Mirante','GK'],
+    [2,'Calabria','RB'], [19,'Theo Hernández','LB'], [23,'Tomori','CB'], [28,'Thiaw','CB'],
+    [24,'Kjær','CB'], [42,'Florenzi','RB'],
+    [14,'Reijnders','CM'], [4,'Bennacer','CM'], [8,'Loftus-Cheek','CM'], [80,'Musah','CM'],
+    [10,'Pulisic','RW'], [11,'Pulisic','RW'], [17,'Leão','LW'], [21,'Chukwueze','RW'],
+    [9,'Giroud','ST'], [90,'Jović','ST'], [70,'Okafor','ST']
+  ])
+};
+
+/* Competitions */
+const COMPETITIONS = [
+  { id: 'epl',  name: 'Premier League',     country: 'England', color: '#3d195b' },
+  { id: 'lal',  name: 'La Liga',            country: 'Spain',   color: '#ee8707' },
+  { id: 'bun',  name: 'Bundesliga',         country: 'Germany', color: '#d20515' },
+  { id: 'ser',  name: 'Serie A',            country: 'Italy',   color: '#008fd7' },
+  { id: 'lig',  name: 'Ligue 1',            country: 'France',  color: '#091c3e' },
+  { id: 'ucl',  name: 'Champions League',   country: 'UEFA',    color: '#0a3d8e' }
+];
+
+/* Build a fixture: team + provider lineups (with intentional discrepancies and gaps) */
+function makeLineups(homeName, awayName, scenario) {
+  // scenario: 'clean' | 'minor' | 'major' | 'incomplete'
+  const home = SQUADS[homeName];
+  const away = SQUADS[awayName];
+  const STARTER_COUNT = 11;
+  const SUB_COUNT = 7;
+
+  // canonical lineup = first 11 starters by sensible position order (we just take first 11 + 7 subs)
+  function canonical(squad) {
+    return {
+      starters: squad.slice(0, STARTER_COUNT).map(p => ({...p})),
+      subs: squad.slice(STARTER_COUNT, STARTER_COUNT + SUB_COUNT).map(p => ({...p}))
+    };
+  }
+
+  const base = { home: canonical(home), away: canonical(away) };
+
+  function clone(b) {
+    return {
+      starters: b.starters.map(p => p ? {...p} : null),
+      subs: b.subs.map(p => p ? {...p} : null)
+    };
+  }
+
+  const out = {};
+  PROVIDERS.forEach(p => {
+    out[p.code] = { home: clone(base.home), away: clone(base.away) };
+  });
+
+  // Apply scenario-specific perturbations
+  function swap(prov, side, idxA, idxB, section='starters') {
+    const arr = out[prov][side][section];
+    [arr[idxA], arr[idxB]] = [arr[idxB], arr[idxA]];
+  }
+  function nullify(prov, side, idx, section='starters') {
+    out[prov][side][section][idx] = null;
+  }
+  function replace(prov, side, idx, section, fromSquadIndex, squadName) {
+    out[prov][side][section][idx] = {...SQUADS[squadName][fromSquadIndex]};
+  }
+
+  if (scenario === 'minor') {
+    // Provider X has a different #10 starter
+    out.X.home.starters[9] = {...SQUADS[homeName][12]};
+    // Sub order differs
+    swap('SR', 'away', 1, 3, 'subs');
+  }
+  if (scenario === 'major') {
+    out.X.home.starters[9] = {...SQUADS[homeName][12]};
+    out.SR.home.starters[7] = {...SQUADS[homeName][13]};
+    out.SS.away.starters[5] = {...SQUADS[awayName][14]};
+    nullify('BG', 'home', 10);
+    nullify('BG', 'away', 8);
+    nullify('BG', 'home', 4, 'subs');
+    nullify('BG', 'away', 5, 'subs');
+  }
+  if (scenario === 'incomplete') {
+    // BetGenius hasn't published yet
+    PROVIDERS.forEach(p => {
+      if (p.code === 'BG') {
+        out.BG.home.starters = out.BG.home.starters.map(_ => null);
+        out.BG.home.subs = out.BG.home.subs.map(_ => null);
+        out.BG.away.starters = out.BG.away.starters.map(_ => null);
+        out.BG.away.subs = out.BG.away.subs.map(_ => null);
+      }
+    });
+    // X has a few gaps
+    nullify('X', 'home', 10);
+    nullify('X', 'away', 9);
+  }
+
+  return out;
+}
+
+/* Fixtures across the 7-day window */
+const FIXTURES = [
+  // Day 0 — Today (Fri May 8)
+  { id:'f1', date:'2026-05-08', kickoff:'19:30', comp:'epl',
+    home:'Liverpool', away:'Arsenal',         scenario:'major' },
+  { id:'f2', date:'2026-05-08', kickoff:'20:00', comp:'epl',
+    home:'Chelsea', away:'Manchester City',   scenario:'minor' },
+  { id:'f3', date:'2026-05-08', kickoff:'20:00', comp:'lal',
+    home:'Real Madrid', away:'Barcelona',     scenario:'clean' },
+  { id:'f4', date:'2026-05-08', kickoff:'20:30', comp:'ser',
+    home:'Inter Milan', away:'AC Milan',      scenario:'incomplete' },
+
+  // Day +1 (Sat May 9)
+  { id:'f5', date:'2026-05-09', kickoff:'15:00', comp:'epl',
+    home:'Arsenal', away:'Chelsea',           scenario:'minor' },
+  { id:'f6', date:'2026-05-09', kickoff:'17:30', comp:'bun',
+    home:'Bayern Munich', away:'Liverpool',   scenario:'incomplete' },
+  { id:'f7', date:'2026-05-09', kickoff:'21:00', comp:'lig',
+    home:'PSG', away:'Real Madrid',           scenario:'clean' },
+
+  // Day +2 (Sun May 10)
+  { id:'f8', date:'2026-05-10', kickoff:'14:00', comp:'epl',
+    home:'Manchester City', away:'Liverpool', scenario:'major' },
+  { id:'f9', date:'2026-05-10', kickoff:'21:00', comp:'lal',
+    home:'Barcelona', away:'Real Madrid',     scenario:'minor' },
+
+  // Day +3 (Mon May 11)
+  { id:'f10', date:'2026-05-11', kickoff:'20:00', comp:'ser',
+    home:'AC Milan', away:'Inter Milan',      scenario:'minor' },
+
+  // Day +4 (Tue May 12) — UCL semi-finals
+  { id:'f11', date:'2026-05-12', kickoff:'20:00', comp:'ucl',
+    home:'Real Madrid', away:'Manchester City', scenario:'incomplete' },
+  { id:'f12', date:'2026-05-12', kickoff:'20:00', comp:'ucl',
+    home:'PSG', away:'Bayern Munich',         scenario:'incomplete' },
+
+  // Day +5 (Wed May 13)
+  { id:'f13', date:'2026-05-13', kickoff:'20:00', comp:'ucl',
+    home:'Inter Milan', away:'Liverpool',     scenario:'incomplete' },
+
+  // Day +6 (Thu May 14)
+  { id:'f14', date:'2026-05-14', kickoff:'19:00', comp:'epl',
+    home:'Liverpool', away:'Chelsea',         scenario:'incomplete' }
+];
+
+// Pre-build lineups
+FIXTURES.forEach(f => {
+  f.lineups = makeLineups(f.home, f.away, f.scenario);
+  f.edits = []; // audit entries scoped to this fixture
+});
+
+/* =========================================================================
+   STATE
+   ========================================================================= */
+const state = {
+  selectedDate: '2026-05-08',
+  activeComps: new Set(COMPETITIONS.map(c => c.id)), // all on by default
+  openFixtures: new Set(),
+  picker: null, // {fixtureId, provider, side, section, slot}
+  audit: [] // global audit log
+};
+
+/* =========================================================================
+   HELPERS
+   ========================================================================= */
+function fmtDate(s) {
+  const d = new Date(s + 'T00:00:00');
+  return d.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' });
+}
+function fmtFullDate(s) {
+  const d = new Date(s + 'T00:00:00');
+  return d.toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+}
+function ymd(d) {
+  return d.toISOString().slice(0,10);
+}
+
+function fixturesForDay(date) {
+  return FIXTURES
+    .filter(f => f.date === date && state.activeComps.has(f.comp))
+    .sort((a,b) => a.kickoff.localeCompare(b.kickoff));
+}
+function fixturesCountForDay(date) {
+  return FIXTURES.filter(f => f.date === date && state.activeComps.has(f.comp)).length;
+}
+function fixturesCountForComp(compId) {
+  return FIXTURES.filter(f => f.comp === compId).length;
+}
+
+/* Compute health status of a fixture given current lineups */
+function fixtureHealth(fx) {
+  let conflicts = 0, missing = 0, total = 0;
+  ['home','away'].forEach(side => {
+    ['starters','subs'].forEach(section => {
+      const slotCount = (section==='starters') ? 11 : 7;
+      for (let i=0; i<slotCount; i++) {
+        total++;
+        const vals = PROVIDERS.map(p => {
+          const cell = fx.lineups[p.code][side][section][i];
+          return cell ? `${cell.num}|${cell.name}` : null;
+        });
+        const present = vals.filter(v => v !== null);
+        if (present.length === 0) missing++;
+        else if (present.length < PROVIDERS.length) missing++;
+        const distinct = new Set(present);
+        if (distinct.size > 1) conflicts++;
+      }
+    });
+  });
+  return { conflicts, missing, total };
+}
+
+function statusFor(fx) {
+  const h = fixtureHealth(fx);
+  if (h.missing === 0 && h.conflicts === 0) return { cls:'ok', label:'All providers in agreement' };
+  if (h.missing >= h.total * 0.4) return { cls:'pending', label:`Awaiting providers · ${h.missing} gaps` };
+  if (h.conflicts > 0) return { cls:'warn', label:`${h.conflicts} conflicts · ${h.missing} gaps` };
+  return { cls:'warn', label:`${h.missing} gaps` };
+}
+
+/* =========================================================================
+   RENDER
+   ========================================================================= */
+
+function renderCompList() {
+  const el = document.getElementById('comp-list');
+  el.innerHTML = '';
+  COMPETITIONS.forEach(c => {
+    const active = state.activeComps.has(c.id);
+    const row = document.createElement('div');
+    row.className = 'comp-item' + (active ? ' active' : '');
+    row.innerHTML = `
+      <input type="checkbox" ${active?'checked':''} />
+      <span class="comp-flag" style="background:${c.color}"></span>
+      <span>${c.name}</span>
+      <span class="comp-count">${fixturesCountForComp(c.id)}</span>
+    `;
+    row.addEventListener('click', (e) => {
+      if (e.target.tagName !== 'INPUT') {
+        const cb = row.querySelector('input');
+        cb.checked = !cb.checked;
+      }
+      if (state.activeComps.has(c.id)) state.activeComps.delete(c.id);
+      else state.activeComps.add(c.id);
+      renderCompList();
+      renderCalendar();
+      renderFixtures();
+    });
+    el.appendChild(row);
+  });
+}
+
+function renderCalendar() {
+  const strip = document.getElementById('cal-strip');
+  strip.innerHTML = '';
+  for (let i=0; i<7; i++) {
+    const d = new Date(TODAY); d.setDate(TODAY.getDate() + i);
+    const dateStr = ymd(d);
+    const isActive = state.selectedDate === dateStr;
+    const isToday = i === 0;
+    const count = fixturesCountForDay(dateStr);
+    const dow = d.toLocaleDateString('en-GB', { weekday:'short' });
+    const dom = d.getDate();
+    const day = document.createElement('div');
+    day.className = 'cal-day' + (isActive?' active':'') + (isToday?' today':'');
+    day.innerHTML = `
+      <div class="dow">${dow}</div>
+      <div class="dom">${dom}</div>
+      <div class="fx-count">${count} fixture${count===1?'':'s'}</div>
+    `;
+    day.addEventListener('click', () => {
+      state.selectedDate = dateStr;
+      renderCalendar();
+      renderFixtures();
+    });
+    strip.appendChild(day);
+  }
+}
+
+function renderSummary() {
+  const fx = fixturesForDay(state.selectedDate);
+  let totalConflicts = 0, totalMissing = 0, complete = 0;
+  fx.forEach(f => {
+    const h = fixtureHealth(f);
+    totalConflicts += h.conflicts;
+    totalMissing += h.missing;
+    if (h.conflicts === 0 && h.missing === 0) complete++;
+  });
+  const el = document.getElementById('summary-bar');
+  el.innerHTML = `
+    <div class="stat"><strong>${fx.length}</strong> fixtures</div>
+    <div class="stat"><span style="width:8px;height:8px;border-radius:50%;background:var(--ok)"></span> <strong>${complete}</strong> clean</div>
+    <div class="stat"><span style="width:8px;height:8px;border-radius:50%;background:var(--warn)"></span> <strong>${totalConflicts}</strong> conflicts</div>
+    <div class="stat"><span style="width:8px;height:8px;border-radius:50%;background:var(--err)"></span> <strong>${totalMissing}</strong> gaps</div>
+    <div class="stat" style="margin-left:auto"><strong>${state.audit.length}</strong> monitor edits today</div>
+  `;
+}
+
+function renderFixtures() {
+  const list = document.getElementById('fixtures-list');
+  list.innerHTML = '';
+  document.getElementById('day-title').textContent = fmtFullDate(state.selectedDate);
+  document.getElementById('day-meta').textContent = `${fixturesForDay(state.selectedDate).length} fixtures across ${state.activeComps.size} competitions`;
+
+  renderSummary();
+
+  const fx = fixturesForDay(state.selectedDate);
+  if (fx.length === 0) {
+    list.innerHTML = `<div class="empty-state">No fixtures for this day in the selected competitions.</div>`;
+    return;
+  }
+
+  fx.forEach(f => {
+    const comp = COMPETITIONS.find(c => c.id === f.comp);
+    const status = statusFor(f);
+    const open = state.openFixtures.has(f.id);
+
+    const fixEl = document.createElement('div');
+    fixEl.className = 'fixture' + (open ? ' open' : '');
+    fixEl.innerHTML = `
+      <div class="fixture-head">
+        <div class="fx-time">${f.kickoff}<span class="ko">UK</span></div>
+        <div class="fx-teams">
+          <span>${f.home}</span><span class="vs">vs</span><span>${f.away}</span>
+        </div>
+        <div class="fx-comp-tag" style="border-left: 3px solid ${comp.color}">${comp.name}</div>
+        <div class="fx-status">
+          <span class="status-dot ${status.cls}"></span>${status.label}
+          <span class="chev">▸</span>
+        </div>
+      </div>
+      <div class="fixture-body"></div>
+    `;
+    fixEl.querySelector('.fixture-head').addEventListener('click', () => {
+      if (state.openFixtures.has(f.id)) state.openFixtures.delete(f.id);
+      else state.openFixtures.add(f.id);
+      renderFixtures();
+    });
+
+    if (open) {
+      const body = fixEl.querySelector('.fixture-body');
+      body.innerHTML = `
+        <div class="body-toolbar">
+          <div class="left">
+            <div class="legend">
+              <span><span class="swatch" style="background:rgba(255,181,71,0.4); border:1px solid rgba(255,181,71,0.7)"></span> conflict</span>
+              <span><span class="swatch" style="background:rgba(255,93,108,0.35); border:1px solid rgba(255,93,108,0.7)"></span> missing</span>
+              <span><span class="swatch" style="background:var(--accent); border-radius:50%; width:8px; height:8px"></span> monitor edit</span>
+            </div>
+          </div>
+          <div class="right">
+            <button class="btn">Refresh providers</button>
+            <button class="btn primary">Mark verified</button>
+          </div>
+        </div>
+        <div class="teams-grid">
+          ${renderTeamPanel(f, 'home')}
+          ${renderTeamPanel(f, 'away')}
+        </div>
+      `;
+      // attach cell click handlers
+      body.querySelectorAll('.cell').forEach(c => {
+        c.addEventListener('click', () => {
+          openPicker({
+            fixtureId: f.id,
+            provider: c.dataset.provider,
+            side: c.dataset.side,
+            section: c.dataset.section,
+            slot: parseInt(c.dataset.slot, 10)
+          });
+        });
+      });
+    }
+    list.appendChild(fixEl);
+  });
+}
+
+function renderTeamPanel(fx, side) {
+  const teamName = (side === 'home') ? fx.home : fx.away;
+  const tag = (side === 'home') ? '<span class="home-tag">Home</span>' : '<span class="away-tag">Away</span>';
+
+  const starterRows = [];
+  for (let i=0; i<11; i++) starterRows.push(renderRow(fx, side, 'starters', i));
+  const subRows = [];
+  for (let i=0; i<7; i++) subRows.push(renderRow(fx, side, 'subs', i));
+
+  const providerHeads = PROVIDERS.map(p =>
+    `<th class="provider provider-${p.code}"><div class="provider-head"><span class="badge">${p.badge}</span></div></th>`
+  ).join('');
+
+  return `
+    <div class="team-panel">
+      <div class="team-header">
+        <h3>${teamName} <span style="color:var(--text-faint);font-weight:400;font-size:11px;margin-left:6px">${SQUADS[teamName].length} player squad</span></h3>
+        ${tag}
+      </div>
+      <table class="lineup-table">
+        <thead>
+          <tr><th></th><th></th>${providerHeads}</tr>
+        </thead>
+        <tbody>
+          <tr class="subs-divider"><td colspan="${2 + PROVIDERS.length}">Starting XI</td></tr>
+          ${starterRows.join('')}
+          <tr class="subs-divider"><td colspan="${2 + PROVIDERS.length}">Substitutes</td></tr>
+          ${subRows.join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+/* For each row (slot index in starters or subs): show position label, slot #, and 4 provider cells */
+function renderRow(fx, side, section, slot) {
+  // For starter row positions, derive a consensus position label from non-null cells
+  const cells = PROVIDERS.map(p => fx.lineups[p.code][side][section][slot]);
+  const consensus = cells.find(c => c !== null);
+  const posLabel = consensus ? consensus.pos : (section === 'starters' ? '—' : 'SUB');
+  const slotLabel = (section === 'starters') ? (slot + 1) : `S${slot + 1}`;
+
+  // Determine if this row has a conflict (providers disagree)
+  const present = cells.filter(c => c !== null).map(c => `${c.num}|${c.name}`);
+  const distinct = new Set(present);
+  const isConflict = distinct.size > 1;
+
+  const cellHtml = PROVIDERS.map(p => {
+    const cell = fx.lineups[p.code][side][section][slot];
+    const isMissing = cell === null;
+    const isEdited = !!fx.edits.find(e =>
+      e.provider === p.code && e.side === side && e.section === section && e.slot === slot
+    );
+    const cls = ['cell'];
+    if (isConflict && !isMissing) cls.push('conflict');
+    if (isMissing) cls.push('missing');
+    if (isEdited) cls.push('edited');
+    const content = isMissing
+      ? `<span>— missing —</span>`
+      : `<span class="num">${cell.num}</span><span class="name">${cell.name}</span>`;
+    return `<td>
+      <div class="${cls.join(' ')}"
+           tabindex="0"
+           data-fixture="${fx.id}" data-provider="${p.code}"
+           data-side="${side}" data-section="${section}" data-slot="${slot}">
+        ${content}
+      </div>
+    </td>`;
+  }).join('');
+
+  return `
+    <tr>
+      <td class="row-pos">${posLabel}</td>
+      <td class="row-num">${slotLabel}</td>
+      ${cellHtml}
+    </tr>
+  `;
+}
+
+/* =========================================================================
+   PICKER
+   ========================================================================= */
+
+function openPicker(ctx) {
+  state.picker = ctx;
+  const fx = FIXTURES.find(f => f.id === ctx.fixtureId);
+  const teamName = (ctx.side === 'home') ? fx.home : fx.away;
+  const slotLabel = ctx.section === 'starters' ? `Starter #${ctx.slot+1}` : `Sub #${ctx.slot+1}`;
+  const providerName = PROVIDERS.find(p => p.code === ctx.provider).name;
+  document.getElementById('picker-ctx').textContent =
+    `${teamName} · ${providerName} · ${slotLabel}`;
+  document.getElementById('picker-search').value = '';
+  renderPickerList('');
+  document.getElementById('picker-overlay').classList.add('open');
+  document.getElementById('picker-search').focus();
+}
+
+function renderPickerList(query) {
+  const fx = FIXTURES.find(f => f.id === state.picker.fixtureId);
+  const teamName = (state.picker.side === 'home') ? fx.home : fx.away;
+  const squad = SQUADS[teamName];
+  const q = query.trim().toLowerCase();
+  const filtered = squad.filter(p =>
+    !q ||
+    p.name.toLowerCase().includes(q) ||
+    String(p.num).includes(q) ||
+    p.pos.toLowerCase().includes(q)
+  );
+
+  // Players already used in this provider's lineup (for this side) — disable
+  const usedKeys = new Set();
+  ['starters','subs'].forEach(sec => {
+    fx.lineups[state.picker.provider][state.picker.side][sec].forEach((cell, idx) => {
+      if (cell && !(sec === state.picker.section && idx === state.picker.slot)) {
+        usedKeys.add(`${cell.num}|${cell.name}`);
+      }
+    });
+  });
+
+  const list = document.getElementById('picker-list');
+  list.innerHTML = filtered.map(p => {
+    const used = usedKeys.has(`${p.num}|${p.name}`);
+    return `
+      <div class="picker-row ${used?'disabled':''}" data-num="${p.num}" data-name="${p.name}">
+        <span class="num">${p.num}</span>
+        <span class="pos">${p.pos}</span>
+        <span class="name">${p.name}</span>
+        ${used?'<span style="color:var(--text-faint);font-size:11px;margin-left:auto">already in lineup</span>':''}
+      </div>
+    `;
+  }).join('') || `<div style="padding: 20px; text-align:center; color: var(--text-faint)">No matches</div>`;
+  list.querySelectorAll('.picker-row').forEach(r => {
+    if (r.classList.contains('disabled')) return;
+    r.addEventListener('click', () => {
+      applyPick({
+        num: parseInt(r.dataset.num, 10),
+        name: r.dataset.name,
+        pos: filtered.find(x => String(x.num) === r.dataset.num && x.name === r.dataset.name).pos
+      });
+    });
+  });
+}
+
+function applyPick(player) {
+  const ctx = state.picker;
+  const fx = FIXTURES.find(f => f.id === ctx.fixtureId);
+  const oldCell = fx.lineups[ctx.provider][ctx.side][ctx.section][ctx.slot];
+  fx.lineups[ctx.provider][ctx.side][ctx.section][ctx.slot] = player;
+  logEdit(fx, ctx, oldCell, player);
+  closePicker();
+  renderFixtures();
+  const originCell = document.querySelector(
+    `.cell[data-fixture="${ctx.fixtureId}"][data-provider="${ctx.provider}"][data-side="${ctx.side}"][data-section="${ctx.section}"][data-slot="${ctx.slot}"]`
+  );
+  if (originCell) originCell.focus();
+}
+
+function clearPick() {
+  const ctx = state.picker;
+  const fx = FIXTURES.find(f => f.id === ctx.fixtureId);
+  const oldCell = fx.lineups[ctx.provider][ctx.side][ctx.section][ctx.slot];
+  fx.lineups[ctx.provider][ctx.side][ctx.section][ctx.slot] = null;
+  logEdit(fx, ctx, oldCell, null);
+  closePicker();
+  renderFixtures();
+}
+
+function closePicker() {
+  state.picker = null;
+  document.getElementById('picker-overlay').classList.remove('open');
+}
+
+/* =========================================================================
+   AUDIT
+   ========================================================================= */
+function logEdit(fx, ctx, oldCell, newCell) {
+  const provider = PROVIDERS.find(p => p.code === ctx.provider).name;
+  const teamName = (ctx.side === 'home') ? fx.home : fx.away;
+  const slotLabel = ctx.section === 'starters' ? `Starter #${ctx.slot+1}` : `Sub #${ctx.slot+1}`;
+  const entry = {
+    when: new Date(),
+    who: 'henry.newman',
+    fixture: `${fx.home} v ${fx.away}`,
+    team: teamName,
+    provider,
+    slot: slotLabel,
+    from: oldCell ? `#${oldCell.num} ${oldCell.name}` : '—',
+    to: newCell ? `#${newCell.num} ${newCell.name}` : '—'
+  };
+  state.audit.unshift(entry);
+  fx.edits.push({...ctx, entry});
+  renderAudit();
+}
+
+function renderAudit() {
+  const list = document.getElementById('audit-list');
+  if (state.audit.length === 0) {
+    list.innerHTML = `<div class="empty-state">No edits yet — when you override a provider, it appears here.</div>`;
+    return;
+  }
+  list.innerHTML = state.audit.map(e => `
+    <div class="audit-entry">
+      <div class="when">${e.when.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',second:'2-digit'})} · today</div>
+      <div><span class="who">${e.who}</span> overrode <strong>${e.provider}</strong></div>
+      <div class="what">${e.team} · ${e.slot}: <del>${e.from}</del> → <ins>${e.to}</ins></div>
+      <div class="ctx">${e.fixture}</div>
+    </div>
+  `).join('');
+}
+
+/* =========================================================================
+   WIRE-UP
+   ========================================================================= */
+
+document.getElementById('picker-search').addEventListener('input', (e) => {
+  renderPickerList(e.target.value);
+});
+document.getElementById('picker-cancel').addEventListener('click', closePicker);
+document.getElementById('picker-clear').addEventListener('click', clearPick);
+document.getElementById('picker-overlay').addEventListener('click', (e) => {
+  if (e.target.id === 'picker-overlay') closePicker();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && state.picker) closePicker();
+
+  if (e.key === 'Tab' && document.activeElement?.classList.contains('cell')) {
+    e.preventDefault();
+    const td = document.activeElement.closest('td');
+    const tr = td.closest('tr');
+    const colIndex = Array.from(tr.children).indexOf(td);
+    let targetRow = e.shiftKey ? tr.previousElementSibling : tr.nextElementSibling;
+    while (targetRow && targetRow.classList.contains('subs-divider')) {
+      targetRow = e.shiftKey ? targetRow.previousElementSibling : targetRow.nextElementSibling;
+    }
+    if (targetRow) {
+      const targetCell = targetRow.children[colIndex]?.querySelector('.cell');
+      if (targetCell) targetCell.focus();
+    }
+  }
+});
+
+document.getElementById('audit-toggle').addEventListener('click', () => {
+  document.getElementById('audit-panel').classList.toggle('open');
+});
+document.getElementById('audit-close').addEventListener('click', () => {
+  document.getElementById('audit-panel').classList.remove('open');
+});
+
+// Initial render
+renderCompList();
+renderCalendar();
+renderFixtures();
+renderAudit();
+
+// Open the first fixture by default to showcase
+state.openFixtures.add('f1');
+renderFixtures();
+
+</script>
+</body>
+</html>
