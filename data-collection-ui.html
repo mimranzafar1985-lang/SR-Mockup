@@ -255,7 +255,24 @@
     padding: 4px 4px;
     border-bottom: 1px solid var(--border);
   }
-  .lineup-table .row-pos { width: 36px; color: var(--text-faint); font-weight: 600; text-align: center; font-size: 11px; }
+  .lineup-table .row-pos { width: 46px; color: var(--text-faint); font-weight: 600; text-align: center; font-size: 11px; }
+  .pos-select {
+    width: 100%;
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text-faint);
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 0;
+    border-radius: 4px;
+    cursor: pointer;
+    outline: none;
+    text-align: center;
+    font-family: inherit;
+  }
+  .pos-select:hover { border-color: var(--border-strong); background: var(--panel-2); color: var(--text); }
+  .pos-select:focus { border-color: var(--accent); color: var(--text); }
+  .pos-select option { background: var(--panel); color: var(--text); }
   .lineup-table .row-num { width: 28px; color: var(--text-dim); text-align:center; font-variant-numeric: tabular-nums; }
   .subs-divider td {
     padding: 12px 4px 6px 4px !important;
@@ -489,6 +506,8 @@
    ========================================================================= */
 
 const TODAY = new Date('2026-05-08T00:00:00');
+
+const POSITIONS = ['GK', 'RB', 'CB', 'LB', 'DM', 'CM', 'AM', 'RW', 'LW', 'ST'];
 
 const PROVIDERS = [
   { code: 'X',  name: 'X (Twitter)',  badge: 'X'  },
@@ -726,7 +745,8 @@ const FIXTURES = [
 // Pre-build lineups
 FIXTURES.forEach(f => {
   f.lineups = makeLineups(f.home, f.away, f.scenario);
-  f.edits = []; // audit entries scoped to this fixture
+  f.edits = [];
+  f.posOverrides = {}; // keyed by "side-section-slot"
 });
 
 /* =========================================================================
@@ -1050,6 +1070,15 @@ function renderFixtures() {
           });
         });
       });
+      // attach position dropdown handlers
+      body.querySelectorAll('.pos-select').forEach(sel => {
+        sel.addEventListener('change', (e) => {
+          e.stopPropagation();
+          const key = `${sel.dataset.side}-${sel.dataset.section}-${sel.dataset.slot}`;
+          f.posOverrides[key] = sel.value;
+        });
+        sel.addEventListener('click', e => e.stopPropagation());
+      });
     }
     list.appendChild(fixEl);
   });
@@ -1076,7 +1105,7 @@ function renderTeamPanel(fx, side) {
       </div>
       <table class="lineup-table">
         <thead>
-          <tr><th></th><th></th>${providerHeads}</tr>
+          <tr><th class="provider" style="text-align:center">POS</th><th class="provider" style="text-align:center">#</th>${providerHeads}</tr>
         </thead>
         <tbody>
           <tr class="subs-divider"><td colspan="${2 + PROVIDERS.length}">Starting XI</td></tr>
@@ -1091,10 +1120,10 @@ function renderTeamPanel(fx, side) {
 
 /* For each row (slot index in starters or subs): show position label, slot #, and 4 provider cells */
 function renderRow(fx, side, section, slot) {
-  // For starter row positions, derive a consensus position label from non-null cells
   const cells = PROVIDERS.map(p => fx.lineups[p.code][side][section][slot]);
   const consensus = cells.find(c => c !== null);
-  const posLabel = consensus ? consensus.pos : (section === 'starters' ? '—' : 'SUB');
+  const overrideKey = `${side}-${section}-${slot}`;
+  const posLabel = fx.posOverrides[overrideKey] || (consensus ? consensus.pos : '—');
   const slotLabel = (section === 'starters') ? (slot + 1) : `S${slot + 1}`;
 
   // Determine if this row has a conflict (providers disagree)
@@ -1125,9 +1154,19 @@ function renderRow(fx, side, section, slot) {
     </td>`;
   }).join('');
 
+  const posOptions = POSITIONS.map(p =>
+    `<option value="${p}" ${p === posLabel ? 'selected' : ''}>${p}</option>`
+  ).join('');
+  const extraOption = POSITIONS.includes(posLabel) ? '' : `<option value="${posLabel}" selected>${posLabel}</option>`;
+
   return `
     <tr>
-      <td class="row-pos">${posLabel}</td>
+      <td class="row-pos">
+        <select class="pos-select"
+                data-fixture="${fx.id}" data-side="${side}" data-section="${section}" data-slot="${slot}">
+          ${extraOption}${posOptions}
+        </select>
+      </td>
       <td class="row-num">${slotLabel}</td>
       ${cellHtml}
     </tr>
