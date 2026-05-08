@@ -91,6 +91,33 @@
   .comp-item input { accent-color: var(--accent); }
   .comp-flag { width: 20px; height: 14px; border-radius: 2px; background: var(--border-strong); display:inline-block; flex-shrink:0; }
   .comp-count { margin-left:auto; color: var(--text-faint); font-size: 11px; }
+  .comp-chev {
+    font-size: 10px; color: var(--text-faint); transition: transform .2s;
+    padding: 2px 4px; border-radius: 3px; flex-shrink: 0;
+  }
+  .comp-chev:hover { color: var(--text); background: var(--border); }
+  .comp-chev.open { transform: rotate(90deg); }
+  .comp-dropdown {
+    display: none;
+    flex-direction: column;
+    gap: 2px;
+    margin: 2px 0 4px 10px;
+    padding: 4px 0 4px 10px;
+    border-left: 2px solid var(--border);
+  }
+  .comp-dropdown.open { display: flex; }
+  .comp-fx-row {
+    display: flex; align-items: center; gap: 6px;
+    padding: 5px 8px; border-radius: 6px;
+    font-size: 11px; color: var(--text-dim);
+    cursor: pointer;
+  }
+  .comp-fx-row:hover { background: var(--panel-2); color: var(--text); }
+  .comp-fx-row .fx-ko { color: var(--text-faint); font-variant-numeric: tabular-nums; min-width: 34px; }
+  .comp-fx-row .fx-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .comp-fx-row .fx-names { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .comp-fx-empty { padding: 6px 8px; font-size: 11px; color: var(--text-faint); font-style: italic; }
+  .comp-fx-row input[type="checkbox"] { accent-color: var(--accent); flex-shrink: 0; cursor: pointer; }
 
   /* ---------- Calendar strip ---------- */
   .cal-strip {
@@ -708,6 +735,8 @@ FIXTURES.forEach(f => {
 const state = {
   selectedDate: '2026-05-08',
   activeComps: new Set(COMPETITIONS.map(c => c.id)), // all on by default
+  expandedComps: new Set(),
+  selectedFixtures: new Set(FIXTURES.map(f => f.id)), // all selected by default
   openFixtures: new Set(),
   picker: null, // {fixtureId, provider, side, section, slot}
   audit: [] // global audit log
@@ -730,11 +759,11 @@ function ymd(d) {
 
 function fixturesForDay(date) {
   return FIXTURES
-    .filter(f => f.date === date && state.activeComps.has(f.comp))
+    .filter(f => f.date === date && state.activeComps.has(f.comp) && state.selectedFixtures.has(f.id))
     .sort((a,b) => a.kickoff.localeCompare(b.kickoff));
 }
 function fixturesCountForDay(date) {
-  return FIXTURES.filter(f => f.date === date && state.activeComps.has(f.comp)).length;
+  return FIXTURES.filter(f => f.date === date && state.activeComps.has(f.comp) && state.selectedFixtures.has(f.id)).length;
 }
 function fixturesCountForComp(compId) {
   return FIXTURES.filter(f => f.comp === compId).length;
@@ -811,15 +840,25 @@ function renderCompList() {
 
   COMPETITIONS.forEach(c => {
     const active = state.activeComps.has(c.id);
+    const expanded = state.expandedComps.has(c.id);
+    const compFixtures = FIXTURES.filter(f => f.comp === c.id && f.date === state.selectedDate)
+      .sort((a, b) => a.kickoff.localeCompare(b.kickoff));
+
+    const wrapper = document.createElement('div');
+
     const row = document.createElement('div');
     row.className = 'comp-item' + (active ? ' active' : '');
     row.innerHTML = `
-      <input type="checkbox" ${active?'checked':''} />
+      <input type="checkbox" ${active ? 'checked' : ''} />
       <span class="comp-flag" style="background:${c.color}"></span>
-      <span>${c.name}</span>
+      <span style="flex:1">${c.name}</span>
       <span class="comp-count">${fixturesCountForComp(c.id)}</span>
+      <span class="comp-chev ${expanded ? 'open' : ''}">▸</span>
     `;
+
+    // Checkbox / row click — toggle active (but not chevron)
     row.addEventListener('click', (e) => {
+      if (e.target.classList.contains('comp-chev')) return;
       if (e.target.tagName !== 'INPUT') {
         const cb = row.querySelector('input');
         cb.checked = !cb.checked;
@@ -830,7 +869,63 @@ function renderCompList() {
       renderCalendar();
       renderFixtures();
     });
-    el.appendChild(row);
+
+    // Chevron click — toggle dropdown
+    row.querySelector('.comp-chev').addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (state.expandedComps.has(c.id)) state.expandedComps.delete(c.id);
+      else state.expandedComps.add(c.id);
+      renderCompList();
+    });
+
+    wrapper.appendChild(row);
+
+    // Dropdown fixture list
+    const dropdown = document.createElement('div');
+    dropdown.className = 'comp-dropdown' + (expanded ? ' open' : '');
+
+    if (compFixtures.length === 0) {
+      dropdown.innerHTML = `<div class="comp-fx-empty">No fixtures</div>`;
+    } else {
+      compFixtures.forEach(f => {
+        const health = fixtureHealth(f);
+        const statusCls = health.conflicts > 0 ? 'var(--warn)' : health.missing > 0 ? 'var(--err)' : 'var(--ok)';
+        const checked = state.selectedFixtures.has(f.id);
+        const fxRow = document.createElement('div');
+        fxRow.className = 'comp-fx-row';
+        fxRow.innerHTML = `
+          <input type="checkbox" ${checked ? 'checked' : ''} title="Show in dashboard" />
+          <span class="fx-ko">${f.kickoff}</span>
+          <span class="fx-dot" style="background:${statusCls}"></span>
+          <span class="fx-names">${f.home} <span style="color:var(--text-faint)">v</span> ${f.away}</span>
+        `;
+
+        // Checkbox — toggle dashboard visibility
+        fxRow.querySelector('input').addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (state.selectedFixtures.has(f.id)) state.selectedFixtures.delete(f.id);
+          else state.selectedFixtures.add(f.id);
+          renderCalendar();
+          renderCompList();
+          renderFixtures();
+        });
+
+        // Row click — navigate to date and open fixture
+        fxRow.addEventListener('click', (e) => {
+          if (e.target.tagName === 'INPUT') return;
+          state.selectedDate = f.date;
+          state.openFixtures.add(f.id);
+          renderCalendar();
+          renderCompList();
+          renderFixtures();
+        });
+
+        dropdown.appendChild(fxRow);
+      });
+    }
+
+    wrapper.appendChild(dropdown);
+    el.appendChild(wrapper);
   });
 }
 
@@ -855,6 +950,7 @@ function renderCalendar() {
     day.addEventListener('click', () => {
       state.selectedDate = dateStr;
       renderCalendar();
+      renderCompList();
       renderFixtures();
     });
     strip.appendChild(day);
