@@ -778,6 +778,37 @@ function statusFor(fx) {
 function renderCompList() {
   const el = document.getElementById('comp-list');
   el.innerHTML = '';
+
+  const allSelected = COMPETITIONS.every(c => state.activeComps.has(c.id));
+  const someSelected = COMPETITIONS.some(c => state.activeComps.has(c.id));
+
+  const selectAllRow = document.createElement('div');
+  selectAllRow.className = 'comp-item' + (allSelected ? ' active' : '');
+  selectAllRow.style.borderBottom = '1px solid var(--border)';
+  selectAllRow.style.marginBottom = '6px';
+  selectAllRow.style.paddingBottom = '10px';
+  selectAllRow.innerHTML = `
+    <input type="checkbox" ${allSelected ? 'checked' : ''} />
+    <span style="font-weight:600; color: var(--text)">All competitions</span>
+    <span class="comp-count">${FIXTURES.length}</span>
+  `;
+  const selectAllCb = selectAllRow.querySelector('input');
+  selectAllCb.indeterminate = someSelected && !allSelected;
+  selectAllRow.addEventListener('click', (e) => {
+    if (e.target.tagName !== 'INPUT') {
+      selectAllCb.checked = !selectAllCb.checked;
+    }
+    if (allSelected) {
+      state.activeComps.clear();
+    } else {
+      COMPETITIONS.forEach(c => state.activeComps.add(c.id));
+    }
+    renderCompList();
+    renderCalendar();
+    renderFixtures();
+  });
+  el.appendChild(selectAllRow);
+
   COMPETITIONS.forEach(c => {
     const active = state.activeComps.has(c.id);
     const row = document.createElement('div');
