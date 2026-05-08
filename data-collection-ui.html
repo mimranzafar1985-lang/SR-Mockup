@@ -1145,6 +1145,16 @@ function renderAudit() {
 document.getElementById('picker-search').addEventListener('input', (e) => {
   renderPickerList(e.target.value);
 });
+document.getElementById('picker-search').addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter') return;
+  const first = document.querySelector('#picker-list .picker-row:not(.disabled)');
+  if (!first) return;
+  const fx = FIXTURES.find(f => f.id === state.picker.fixtureId);
+  const teamName = (state.picker.side === 'home') ? fx.home : fx.away;
+  const squad = SQUADS[teamName];
+  const player = squad.find(p => String(p.num) === first.dataset.num && p.name === first.dataset.name);
+  if (player) applyPick(player);
+});
 document.getElementById('picker-cancel').addEventListener('click', closePicker);
 document.getElementById('picker-clear').addEventListener('click', clearPick);
 document.getElementById('picker-overlay').addEventListener('click', (e) => {
