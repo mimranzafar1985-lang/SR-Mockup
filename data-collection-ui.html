@@ -161,7 +161,7 @@
   .fixture { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 10px; overflow: hidden; }
   .fixture-head {
     display: grid;
-    grid-template-columns: 70px 1fr auto auto;
+    grid-template-columns: 70px 1fr auto auto 32px;
     align-items: center;
     gap: 14px;
     padding: 12px 16px;
@@ -169,6 +169,15 @@
     user-select: none;
   }
   .fixture-head:hover { background: rgba(255,255,255,0.02); }
+  .btn-lineup {
+    width: 28px; height: 28px;
+    background: var(--panel-2); border: 1px solid var(--border-strong);
+    border-radius: 6px; color: var(--text-faint);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; flex-shrink: 0; transition: border-color .12s, color .12s, background .12s;
+    padding: 0;
+  }
+  .btn-lineup:hover { border-color: var(--accent); color: var(--accent); background: rgba(79,140,255,0.1); }
   .fx-time { font-weight: 600; color: var(--text); font-size: 13px; }
   .fx-time .ko { color: var(--text-dim); font-size: 11px; display:block; }
   .fx-teams { display:flex; align-items:center; gap:10px; font-weight:500; }
@@ -273,7 +282,19 @@
   .pos-select:hover { border-color: var(--border-strong); background: var(--panel-2); color: var(--text); }
   .pos-select:focus { border-color: var(--accent); color: var(--text); }
   .pos-select option { background: var(--panel); color: var(--text); }
-  .lineup-table .row-num { width: 28px; color: var(--text-dim); text-align:center; font-variant-numeric: tabular-nums; }
+  .lineup-table .row-num { width: 28px; text-align:center; padding: 2px 2px; }
+  .row-num-input {
+    width: 28px; background: transparent; border: 1px solid transparent;
+    color: var(--text-dim); border-radius: 3px; font-size: 11px; font-weight: 600;
+    font-family: inherit; text-align: center; font-variant-numeric: tabular-nums;
+    padding: 2px 1px; outline: none;
+  }
+  .row-num-input:hover { border-color: var(--border-strong); background: var(--panel-2); }
+  .row-num-input:focus { border-color: var(--accent); background: var(--panel-2); color: var(--text); }
+  .row-num-input::-webkit-inner-spin-button,
+  .row-num-input::-webkit-outer-spin-button { -webkit-appearance: none; appearance: none; margin: 0; }
+  .row-num-input[type=number] { -moz-appearance: textfield; appearance: textfield; }
+  .row-num-input.filled { color: var(--text); border-color: rgba(61,220,151,0.3); }
   .subs-divider td {
     padding: 12px 4px 6px 4px !important;
     font-size: 10px;
@@ -320,57 +341,51 @@
   .provider-SS .badge { background: #ff5e3a; color: white; }
   .provider-BG .badge { background: #8a4fff; color: white; }
 
-  /* Dropdown picker */
-  .picker-overlay {
+  /* Inline cell dropdown */
+  .cell-dropdown {
     display: none;
-    position: fixed; inset: 0;
-    background: rgba(0,0,0,0.4);
-    z-index: 100;
-    align-items: flex-start; justify-content: center;
-    padding-top: 80px;
-  }
-  .picker-overlay.open { display: flex; }
-  .picker {
+    position: fixed;
     background: var(--panel);
     border: 1px solid var(--border-strong);
     border-radius: 10px;
-    width: 360px;
-    max-height: 70vh;
+    width: 260px;
+    max-height: 280px;
     box-shadow: var(--shadow);
-    display: flex; flex-direction: column;
+    z-index: 200;
+    flex-direction: column;
     overflow: hidden;
   }
-  .picker-head { padding: 12px 14px; border-bottom: 1px solid var(--border); }
-  .picker-head .ctx { font-size: 11px; color: var(--text-dim); }
-  .picker-head h4 { margin: 4px 0 0 0; font-size: 14px; }
-  .picker-search {
-    padding: 10px 14px;
-    border-bottom: 1px solid var(--border);
-  }
-  .picker-search input {
-    width: 100%;
-    background: var(--panel-2);
-    border: 1px solid var(--border);
+  .cell-dropdown.open { display: flex; }
+  .cell-search-input {
+    background: transparent;
+    border: none;
     color: var(--text);
-    border-radius: 6px;
-    padding: 8px 10px;
-    font-size: 13px;
+    font-size: 12px;
+    font-family: inherit;
+    flex: 1;
+    min-width: 0;
+    outline: none;
+    padding: 0;
+    font-variant-numeric: tabular-nums;
   }
-  .picker-search input:focus { outline: none; border-color: var(--accent); }
+  .cell.editing {
+    background: rgba(79,140,255,0.12) !important;
+    border-color: var(--accent) !important;
+  }
   .picker-list { overflow-y: auto; flex: 1; padding: 4px 0; }
   .picker-row {
     display: flex; align-items: center; gap: 10px;
-    padding: 8px 14px; cursor: pointer;
-    font-size: 13px;
+    padding: 7px 12px; cursor: pointer;
+    font-size: 12px;
   }
   .picker-row:hover { background: var(--panel-2); }
   .picker-row .num { color: var(--text-faint); width: 24px; text-align: center; font-variant-numeric: tabular-nums; }
-  .picker-row .pos { color: var(--text-dim); font-size: 11px; width: 36px; }
+  .picker-row .pos { color: var(--text-dim); font-size: 11px; width: 32px; }
   .picker-row.disabled { color: var(--text-faint); opacity: 0.4; cursor: not-allowed; }
   .picker-actions {
     border-top: 1px solid var(--border);
-    padding: 8px 14px;
-    display:flex; justify-content: space-between; gap: 8px;
+    padding: 6px 10px;
+    display: flex; gap: 6px;
   }
 
   /* Audit log */
@@ -473,21 +488,11 @@
   </main>
 </div>
 
-<!-- Player picker modal -->
-<div class="picker-overlay" id="picker-overlay">
-  <div class="picker">
-    <div class="picker-head">
-      <div class="ctx" id="picker-ctx">Liverpool · Provider X · Starter #4</div>
-      <h4>Select player</h4>
-    </div>
-    <div class="picker-search">
-      <input type="text" id="picker-search" placeholder="Search by name or number…" autocomplete="off">
-    </div>
-    <div class="picker-list" id="picker-list"></div>
-    <div class="picker-actions">
-      <button class="btn" id="picker-clear">Clear / mark missing</button>
-      <button class="btn" id="picker-cancel">Cancel</button>
-    </div>
+<!-- Inline player dropdown -->
+<div class="cell-dropdown" id="cell-dropdown">
+  <div class="picker-list" id="picker-list"></div>
+  <div class="picker-actions">
+    <button class="btn" id="picker-clear" style="flex:1;font-size:11px">Clear / mark missing</button>
   </div>
 </div>
 
@@ -507,7 +512,14 @@
 
 const TODAY = new Date('2026-05-08T00:00:00');
 
-const POSITIONS = ['GK', 'RB', 'CB', 'LB', 'DM', 'CM', 'AM', 'RW', 'LW', 'ST'];
+const POSITIONS = ['GK', 'DF', 'MF', 'FW'];
+
+const POS_MAP = {
+  'GK':'GK',
+  'RB':'DF','CB':'DF','LB':'DF','RWB':'DF','LWB':'DF',
+  'CM':'MF','DM':'MF','AM':'MF','RM':'MF','LM':'MF',
+  'ST':'FW','RW':'FW','LW':'FW',
+};
 
 const PROVIDERS = [
   { code: 'X',  name: 'X (Twitter)',  badge: 'X'  },
@@ -758,7 +770,8 @@ const state = {
   expandedComps: new Set(),
   selectedFixtures: new Set(FIXTURES.map(f => f.id)), // all selected by default
   openFixtures: new Set(),
-  picker: null, // {fixtureId, provider, side, section, slot}
+  picker: null,     // {fixtureId, provider, side, section, slot}
+  pickerCell: null, // reference to the cell DOM element being edited
   audit: [] // global audit log
 };
 
@@ -1028,6 +1041,12 @@ function renderFixtures() {
           <span class="status-dot ${status.cls}"></span>${status.label}
           <span class="chev">▸</span>
         </div>
+        <button class="btn-lineup" target="_blank" title="Open lineup entry for ${f.home} vs ${f.away}">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true">
+            <circle cx="7" cy="4.5" r="2.5"/>
+            <path d="M1.5 13.5c0-3 2.5-5.5 5.5-5.5s5.5 2.5 5.5 5.5" stroke="currentColor" stroke-width="1" fill="none" stroke-linecap="round"/>
+          </svg>
+        </button>
       </div>
       <div class="fixture-body"></div>
     `;
@@ -1035,6 +1054,16 @@ function renderFixtures() {
       if (state.openFixtures.has(f.id)) state.openFixtures.delete(f.id);
       else state.openFixtures.add(f.id);
       renderFixtures();
+    });
+    fixEl.querySelector('.btn-lineup').addEventListener('click', e => {
+      e.stopPropagation();
+      const params = new URLSearchParams({
+        home: f.home,
+        away: f.away,
+        kickoff: f.kickoff,
+        comp: comp.name
+      });
+      window.open(`lineup-entry.html?${params}`, '_blank');
     });
 
     if (open) {
@@ -1061,13 +1090,14 @@ function renderFixtures() {
       // attach cell click handlers
       body.querySelectorAll('.cell').forEach(c => {
         c.addEventListener('click', () => {
+          if (state.pickerCell === c) return; // already editing this cell
           openPicker({
             fixtureId: f.id,
             provider: c.dataset.provider,
             side: c.dataset.side,
             section: c.dataset.section,
             slot: parseInt(c.dataset.slot, 10)
-          });
+          }, c);
         });
       });
       // attach position dropdown handlers
@@ -1123,7 +1153,8 @@ function renderRow(fx, side, section, slot) {
   const cells = PROVIDERS.map(p => fx.lineups[p.code][side][section][slot]);
   const consensus = cells.find(c => c !== null);
   const overrideKey = `${side}-${section}-${slot}`;
-  const posLabel = fx.posOverrides[overrideKey] || (consensus ? consensus.pos : '—');
+  const rawPos = fx.posOverrides[overrideKey] || (consensus ? consensus.pos : 'MF');
+  const posLabel = POS_MAP[rawPos] || rawPos;
   const slotLabel = (section === 'starters') ? (slot + 1) : `S${slot + 1}`;
 
   // Determine if this row has a conflict (providers disagree)
@@ -1157,17 +1188,23 @@ function renderRow(fx, side, section, slot) {
   const posOptions = POSITIONS.map(p =>
     `<option value="${p}" ${p === posLabel ? 'selected' : ''}>${p}</option>`
   ).join('');
-  const extraOption = POSITIONS.includes(posLabel) ? '' : `<option value="${posLabel}" selected>${posLabel}</option>`;
+
+  const shirtVal = consensus ? consensus.num : '';
+  const shirtFilled = consensus ? ' filled' : '';
 
   return `
     <tr>
       <td class="row-pos">
         <select class="pos-select"
                 data-fixture="${fx.id}" data-side="${side}" data-section="${section}" data-slot="${slot}">
-          ${extraOption}${posOptions}
+          ${posOptions}
         </select>
       </td>
-      <td class="row-num">${slotLabel}</td>
+      <td class="row-num">
+        <input type="number" class="row-num-input${shirtFilled}"
+               data-fixture="${fx.id}" data-side="${side}" data-section="${section}" data-slot="${slot}"
+               value="${shirtVal}" placeholder="${slotLabel}" min="1" max="99" autocomplete="off">
+      </td>
       ${cellHtml}
     </tr>
   `;
@@ -1177,18 +1214,40 @@ function renderRow(fx, side, section, slot) {
    PICKER
    ========================================================================= */
 
-function openPicker(ctx) {
+function openPicker(ctx, cellEl) {
+  if (state.picker) closePicker();
   state.picker = ctx;
+  state.pickerCell = cellEl;
+
   const fx = FIXTURES.find(f => f.id === ctx.fixtureId);
-  const teamName = (ctx.side === 'home') ? fx.home : fx.away;
-  const slotLabel = ctx.section === 'starters' ? `Starter #${ctx.slot+1}` : `Sub #${ctx.slot+1}`;
-  const providerName = PROVIDERS.find(p => p.code === ctx.provider).name;
-  document.getElementById('picker-ctx').textContent =
-    `${teamName} · ${providerName} · ${slotLabel}`;
-  document.getElementById('picker-search').value = '';
-  renderPickerList('');
-  document.getElementById('picker-overlay').classList.add('open');
-  document.getElementById('picker-search').focus();
+  const currentPlayer = fx.lineups[ctx.provider][ctx.side][ctx.section][ctx.slot];
+  const currentVal = currentPlayer ? currentPlayer.name : '';
+
+  // Transform the cell into an inline search input
+  cellEl.innerHTML = `<input class="cell-search-input" autocomplete="off" placeholder="Search…">`;
+  const input = cellEl.querySelector('.cell-search-input');
+  input.value = currentVal;
+  cellEl.classList.add('editing');
+
+  input.addEventListener('input', () => renderPickerList(input.value));
+  input.addEventListener('click', e => e.stopPropagation());
+
+  renderPickerList(currentVal);
+
+  const dropdown = document.getElementById('cell-dropdown');
+  const rect = cellEl.getBoundingClientRect();
+  const dw = 260, dh = 280;
+  let top = rect.bottom + 2;
+  if (top + dh > window.innerHeight - 8) top = rect.top - dh - 2;
+  if (top < 8) top = 8;
+  let left = rect.left;
+  if (left + dw > window.innerWidth - 8) left = window.innerWidth - dw - 8;
+  if (left < 8) left = 8;
+  dropdown.style.top = top + 'px';
+  dropdown.style.left = left + 'px';
+  dropdown.classList.add('open');
+  input.select();
+  input.focus();
 }
 
 function renderPickerList(query) {
@@ -1242,13 +1301,11 @@ function applyPick(player) {
   const fx = FIXTURES.find(f => f.id === ctx.fixtureId);
   const oldCell = fx.lineups[ctx.provider][ctx.side][ctx.section][ctx.slot];
   fx.lineups[ctx.provider][ctx.side][ctx.section][ctx.slot] = player;
-  logEdit(fx, ctx, oldCell, player);
+  if (!oldCell || oldCell.num !== player.num || oldCell.name !== player.name) {
+    logEdit(fx, ctx, oldCell, player);
+  }
   closePicker();
   renderFixtures();
-  const originCell = document.querySelector(
-    `.cell[data-fixture="${ctx.fixtureId}"][data-provider="${ctx.provider}"][data-side="${ctx.side}"][data-section="${ctx.section}"][data-slot="${ctx.slot}"]`
-  );
-  if (originCell) originCell.focus();
 }
 
 function clearPick() {
@@ -1262,8 +1319,30 @@ function clearPick() {
 }
 
 function closePicker() {
+  if (state.pickerCell && state.picker) {
+    const ctx = state.picker;
+    const fx = FIXTURES.find(f => f.id === ctx.fixtureId);
+    const player = fx.lineups[ctx.provider][ctx.side][ctx.section][ctx.slot];
+    state.pickerCell.classList.remove('editing');
+    if (player === null) {
+      state.pickerCell.innerHTML = `<span>— missing —</span>`;
+      state.pickerCell.classList.add('missing');
+    } else {
+      state.pickerCell.classList.remove('missing');
+      state.pickerCell.innerHTML = `<span class="num">${player.num}</span><span class="name">${player.name}</span>`;
+    }
+    // Auto-fill the row shirt number from the selected player
+    const numInput = document.querySelector(
+      `.row-num-input[data-fixture="${ctx.fixtureId}"][data-side="${ctx.side}"][data-section="${ctx.section}"][data-slot="${ctx.slot}"]`
+    );
+    if (numInput) {
+      if (player) { numInput.value = player.num; numInput.classList.add('filled'); }
+      else { numInput.value = ''; numInput.classList.remove('filled'); }
+    }
+  }
   state.picker = null;
-  document.getElementById('picker-overlay').classList.remove('open');
+  state.pickerCell = null;
+  document.getElementById('cell-dropdown').classList.remove('open');
 }
 
 /* =========================================================================
@@ -1308,39 +1387,94 @@ function renderAudit() {
    WIRE-UP
    ========================================================================= */
 
-document.getElementById('picker-search').addEventListener('input', (e) => {
-  renderPickerList(e.target.value);
-});
-document.getElementById('picker-search').addEventListener('keydown', (e) => {
-  if (e.key !== 'Enter') return;
-  const first = document.querySelector('#picker-list .picker-row:not(.disabled)');
-  if (!first) return;
-  const fx = FIXTURES.find(f => f.id === state.picker.fixtureId);
-  const teamName = (state.picker.side === 'home') ? fx.home : fx.away;
-  const squad = SQUADS[teamName];
-  const player = squad.find(p => String(p.num) === first.dataset.num && p.name === first.dataset.name);
-  if (player) applyPick(player);
-});
-document.getElementById('picker-cancel').addEventListener('click', closePicker);
 document.getElementById('picker-clear').addEventListener('click', clearPick);
-document.getElementById('picker-overlay').addEventListener('click', (e) => {
-  if (e.target.id === 'picker-overlay') closePicker();
+document.addEventListener('mousedown', (e) => {
+  if (!state.picker) return;
+  if (e.target.closest('.cell')) return; // cell click will handle openPicker itself
+  if (!document.getElementById('cell-dropdown').contains(e.target)) closePicker();
 });
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && state.picker) closePicker();
+  if (e.key === 'Escape' && state.picker) { closePicker(); return; }
 
-  if (e.key === 'Tab' && document.activeElement?.classList.contains('cell')) {
+  if (e.key === 'Enter' && state.picker) {
     e.preventDefault();
-    const td = document.activeElement.closest('td');
+    const first = document.querySelector('#picker-list .picker-row:not(.disabled)');
+    if (!first) return;
+    const fx = FIXTURES.find(f => f.id === state.picker.fixtureId);
+    const teamName = (state.picker.side === 'home') ? fx.home : fx.away;
+    const squad = SQUADS[teamName];
+    const player = squad.find(p => String(p.num) === first.dataset.num && p.name === first.dataset.name);
+    if (player) applyPick(player);
+    return;
+  }
+
+  if (e.key === 'Tab' && (state.picker || document.activeElement?.classList.contains('cell'))) {
+    e.preventDefault();
+    const currentCellEl = state.pickerCell || (document.activeElement?.classList.contains('cell') ? document.activeElement : null);
+    if (!currentCellEl) return;
+
+    // Capture target cell data BEFORE any DOM changes
+    const td = currentCellEl.closest('td');
     const tr = td.closest('tr');
     const colIndex = Array.from(tr.children).indexOf(td);
     let targetRow = e.shiftKey ? tr.previousElementSibling : tr.nextElementSibling;
     while (targetRow && targetRow.classList.contains('subs-divider')) {
       targetRow = e.shiftKey ? targetRow.previousElementSibling : targetRow.nextElementSibling;
     }
+    let targetData = null;
     if (targetRow) {
       const targetCell = targetRow.children[colIndex]?.querySelector('.cell');
-      if (targetCell) targetCell.focus();
+      if (targetCell) {
+        targetData = {
+          fixture: targetCell.dataset.fixture,
+          provider: targetCell.dataset.provider,
+          side: targetCell.dataset.side,
+          section: targetCell.dataset.section,
+          slot: parseInt(targetCell.dataset.slot, 10)
+        };
+      }
+    }
+
+    // Commit current pick if picker is open and input has text
+    let didCommit = false;
+    if (state.picker) {
+      const input = state.pickerCell?.querySelector('.cell-search-input');
+      if (input && input.value.trim()) {
+        const first = document.querySelector('#picker-list .picker-row:not(.disabled)');
+        if (first) {
+          const ctx = state.picker;
+          const fx = FIXTURES.find(f => f.id === ctx.fixtureId);
+          const teamName = (ctx.side === 'home') ? fx.home : fx.away;
+          const squad = SQUADS[teamName];
+          const player = squad.find(p => String(p.num) === first.dataset.num && p.name === first.dataset.name);
+          if (player) {
+            const oldCell = fx.lineups[ctx.provider][ctx.side][ctx.section][ctx.slot];
+            fx.lineups[ctx.provider][ctx.side][ctx.section][ctx.slot] = player;
+            if (!oldCell || oldCell.num !== player.num || oldCell.name !== player.name) {
+              logEdit(fx, ctx, oldCell, player);
+            }
+            didCommit = true;
+          }
+        }
+      }
+      closePicker();
+      if (didCommit) renderFixtures();
+    }
+
+    // Open picker on target cell (in rebuilt or existing DOM)
+    if (targetData) {
+      const newCell = document.querySelector(
+        `.cell[data-fixture="${targetData.fixture}"][data-provider="${targetData.provider}"][data-side="${targetData.side}"][data-section="${targetData.section}"][data-slot="${targetData.slot}"]`
+      );
+      if (newCell) {
+        openPicker({
+          fixtureId: newCell.dataset.fixture,
+          provider: newCell.dataset.provider,
+          side: newCell.dataset.side,
+          section: newCell.dataset.section,
+          slot: parseInt(newCell.dataset.slot, 10)
+        }, newCell);
+      }
     }
   }
 });
