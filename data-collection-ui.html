@@ -437,6 +437,42 @@
   }
   .summary-bar .stat { display:flex; align-items:center; gap:6px; color: var(--text-dim); }
   .summary-bar .stat strong { color: var(--text); font-size: 14px; font-variant-numeric: tabular-nums; }
+
+  /* Manual lineup column */
+  .manual-col-head {
+    background: rgba(79,140,255,0.08) !important;
+    border-left: 2px solid rgba(79,140,255,0.2) !important;
+  }
+  .manual-td-inner { display: flex; align-items: center; gap: 3px; }
+  .manual-td-inner .cell { flex: 1; min-width: 110px; }
+  .cell.manual-cell {
+    background: rgba(79,140,255,0.05);
+    border-color: rgba(79,140,255,0.12);
+  }
+  .cell.manual-cell:hover { background: rgba(79,140,255,0.10); border-color: var(--accent); }
+  .cell.manual-cell.missing { background: rgba(79,140,255,0.04); border-color: rgba(79,140,255,0.12); color: var(--text-faint); font-style: italic; }
+  .inj-toggle {
+    flex-shrink: 0; cursor: pointer; font-size: 9px; font-weight: 700;
+    padding: 1px 5px; border-radius: 3px; border: 1px solid var(--border);
+    color: var(--text-faint); background: transparent; font-family: inherit;
+    line-height: 1.6; white-space: nowrap; letter-spacing: 0.3px;
+  }
+  .inj-toggle:hover { border-color: var(--warn); color: var(--warn); }
+  .inj-toggle.active { background: rgba(255,181,71,0.18); border-color: var(--warn); color: var(--warn); }
+  tr.row-injured td { background: rgba(255,181,71,0.03); }
+  tr.row-injured .cell.manual-cell { background: rgba(255,181,71,0.10); border-color: rgba(255,181,71,0.4); }
+  tr.row-injured .cell.manual-cell .name,
+  tr.row-injured .cell.manual-cell .num { color: var(--warn); }
+  tr.row-injured .row-num-input { color: var(--warn); }
+  tr.row-injured .pos-select { color: var(--warn); }
+  .btn-publish {
+    background: var(--accent); color: #fff; border: none;
+    border-radius: 6px; padding: 6px 18px; font-size: 12px; font-weight: 600;
+    cursor: pointer; font-family: inherit; transition: background .15s, opacity .15s;
+  }
+  .btn-publish:hover { opacity: 0.85; }
+  .btn-publish.published { background: var(--ok); }
+  .publish-row td { border-bottom: none !important; padding-top: 10px !important; }
 </style>
 </head>
 <body>
@@ -758,7 +794,12 @@ const FIXTURES = [
 FIXTURES.forEach(f => {
   f.lineups = makeLineups(f.home, f.away, f.scenario);
   f.edits = [];
-  f.posOverrides = {}; // keyed by "side-section-slot"
+  f.posOverrides = {};
+  f.manualLineup = {
+    home: { starters: Array(11).fill(null), subs: Array(7).fill(null) },
+    away: { starters: Array(11).fill(null), subs: Array(7).fill(null) }
+  };
+  f.injuredSlots = new Set();
 });
 
 /* =========================================================================
@@ -1109,6 +1150,34 @@ function renderFixtures() {
         });
         sel.addEventListener('click', e => e.stopPropagation());
       });
+      // injured toggle handlers — toggle class in-place, no full re-render
+      body.querySelectorAll('.inj-toggle').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const fx2 = FIXTURES.find(fix => fix.id === btn.dataset.fixture);
+          if (!fx2) return;
+          const key = `${btn.dataset.side}-${btn.dataset.section}-${btn.dataset.slot}`;
+          if (fx2.injuredSlots.has(key)) {
+            fx2.injuredSlots.delete(key);
+            btn.classList.remove('active');
+            btn.title = 'Mark as injured';
+          } else {
+            fx2.injuredSlots.add(key);
+            btn.classList.add('active');
+            btn.title = 'Clear injury';
+          }
+          btn.closest('tr').classList.toggle('row-injured', fx2.injuredSlots.has(key));
+        });
+      });
+      // publish button handlers
+      body.querySelectorAll('.btn-publish').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          btn.textContent = '✓ Published!';
+          btn.classList.add('published');
+          setTimeout(() => { btn.textContent = 'Publish Lineup'; btn.classList.remove('published'); }, 2500);
+        });
+      });
     }
     list.appendChild(fixEl);
   });
@@ -1126,6 +1195,7 @@ function renderTeamPanel(fx, side) {
   const providerHeads = PROVIDERS.map(p =>
     `<th class="provider provider-${p.code}"><div class="provider-head"><span class="badge">${p.badge}</span></div></th>`
   ).join('');
+  const totalCols = 2 + PROVIDERS.length + 1;
 
   return `
     <div class="team-panel">
@@ -1135,13 +1205,16 @@ function renderTeamPanel(fx, side) {
       </div>
       <table class="lineup-table">
         <thead>
-          <tr><th class="provider" style="text-align:center">POS</th><th class="provider" style="text-align:center">#</th>${providerHeads}</tr>
+          <tr><th class="provider" style="text-align:center">POS</th><th class="provider" style="text-align:center">#</th>${providerHeads}<th class="provider manual-col-head" style="text-align:center;min-width:160px"><div class="provider-head" style="color:var(--accent)"><span class="badge" style="background:rgba(79,140,255,0.25);color:var(--accent)">SR</span>&nbsp;Manual</div></th></tr>
         </thead>
         <tbody>
-          <tr class="subs-divider"><td colspan="${2 + PROVIDERS.length}">Starting XI</td></tr>
+          <tr class="subs-divider"><td colspan="${totalCols}">Starting XI</td></tr>
           ${starterRows.join('')}
-          <tr class="subs-divider"><td colspan="${2 + PROVIDERS.length}">Substitutes</td></tr>
+          <tr class="subs-divider"><td colspan="${totalCols}">Substitutes</td></tr>
           ${subRows.join('')}
+          <tr class="publish-row"><td colspan="${totalCols}" style="text-align:right;padding:8px 8px 4px;">
+            <button class="btn-publish" data-fixture="${fx.id}" data-side="${side}">Publish Lineup</button>
+          </td></tr>
         </tbody>
       </table>
     </div>
@@ -1192,8 +1265,28 @@ function renderRow(fx, side, section, slot) {
   const shirtVal = consensus ? consensus.num : '';
   const shirtFilled = consensus ? ' filled' : '';
 
+  const injKey = `${side}-${section}-${slot}`;
+  const isInjured = fx.injuredSlots.has(injKey);
+  const manualPlayer = fx.manualLineup[side][section][slot];
+  const manualContent = manualPlayer
+    ? `<span class="num">${manualPlayer.num}</span><span class="name">${manualPlayer.name}</span>`
+    : `<span>— select —</span>`;
+  const manualCls = ['cell', 'manual-cell', ...(manualPlayer ? [] : ['missing'])].join(' ');
+  const manualCell = `<td>
+    <div class="manual-td-inner">
+      <div class="${manualCls}" tabindex="0"
+           data-fixture="${fx.id}" data-provider="MANUAL"
+           data-side="${side}" data-section="${section}" data-slot="${slot}">
+        ${manualContent}
+      </div>
+      <button class="inj-toggle${isInjured ? ' active' : ''}"
+              data-fixture="${fx.id}" data-side="${side}" data-section="${section}" data-slot="${slot}"
+              title="${isInjured ? 'Clear injury' : 'Mark as injured'}">INJ</button>
+    </div>
+  </td>`;
+
   return `
-    <tr>
+    <tr${isInjured ? ' class="row-injured"' : ''}>
       <td class="row-pos">
         <select class="pos-select"
                 data-fixture="${fx.id}" data-side="${side}" data-section="${section}" data-slot="${slot}">
@@ -1206,6 +1299,7 @@ function renderRow(fx, side, section, slot) {
                value="${shirtVal}" placeholder="${slotLabel}" min="1" max="99" autocomplete="off">
       </td>
       ${cellHtml}
+      ${manualCell}
     </tr>
   `;
 }
@@ -1220,7 +1314,9 @@ function openPicker(ctx, cellEl) {
   state.pickerCell = cellEl;
 
   const fx = FIXTURES.find(f => f.id === ctx.fixtureId);
-  const currentPlayer = fx.lineups[ctx.provider][ctx.side][ctx.section][ctx.slot];
+  const currentPlayer = ctx.provider === 'MANUAL'
+    ? fx.manualLineup[ctx.side][ctx.section][ctx.slot]
+    : fx.lineups[ctx.provider][ctx.side][ctx.section][ctx.slot];
   const currentVal = currentPlayer ? currentPlayer.name : '';
 
   // Transform the cell into an inline search input
@@ -1265,7 +1361,10 @@ function renderPickerList(query) {
   // Players already used in this provider's lineup (for this side) — disable
   const usedKeys = new Set();
   ['starters','subs'].forEach(sec => {
-    fx.lineups[state.picker.provider][state.picker.side][sec].forEach((cell, idx) => {
+    const lineupArr = state.picker.provider === 'MANUAL'
+      ? fx.manualLineup[state.picker.side][sec]
+      : fx.lineups[state.picker.provider][state.picker.side][sec];
+    lineupArr.forEach((cell, idx) => {
       if (cell && !(sec === state.picker.section && idx === state.picker.slot)) {
         usedKeys.add(`${cell.num}|${cell.name}`);
       }
@@ -1296,11 +1395,21 @@ function renderPickerList(query) {
   });
 }
 
+function _getLineupSlot(fx, ctx) {
+  return ctx.provider === 'MANUAL'
+    ? fx.manualLineup[ctx.side][ctx.section][ctx.slot]
+    : fx.lineups[ctx.provider][ctx.side][ctx.section][ctx.slot];
+}
+function _setLineupSlot(fx, ctx, value) {
+  if (ctx.provider === 'MANUAL') fx.manualLineup[ctx.side][ctx.section][ctx.slot] = value;
+  else fx.lineups[ctx.provider][ctx.side][ctx.section][ctx.slot] = value;
+}
+
 function applyPick(player) {
   const ctx = state.picker;
   const fx = FIXTURES.find(f => f.id === ctx.fixtureId);
-  const oldCell = fx.lineups[ctx.provider][ctx.side][ctx.section][ctx.slot];
-  fx.lineups[ctx.provider][ctx.side][ctx.section][ctx.slot] = player;
+  const oldCell = _getLineupSlot(fx, ctx);
+  _setLineupSlot(fx, ctx, player);
   if (!oldCell || oldCell.num !== player.num || oldCell.name !== player.name) {
     logEdit(fx, ctx, oldCell, player);
   }
@@ -1311,8 +1420,8 @@ function applyPick(player) {
 function clearPick() {
   const ctx = state.picker;
   const fx = FIXTURES.find(f => f.id === ctx.fixtureId);
-  const oldCell = fx.lineups[ctx.provider][ctx.side][ctx.section][ctx.slot];
-  fx.lineups[ctx.provider][ctx.side][ctx.section][ctx.slot] = null;
+  const oldCell = _getLineupSlot(fx, ctx);
+  _setLineupSlot(fx, ctx, null);
   logEdit(fx, ctx, oldCell, null);
   closePicker();
   renderFixtures();
@@ -1322,7 +1431,7 @@ function closePicker() {
   if (state.pickerCell && state.picker) {
     const ctx = state.picker;
     const fx = FIXTURES.find(f => f.id === ctx.fixtureId);
-    const player = fx.lineups[ctx.provider][ctx.side][ctx.section][ctx.slot];
+    const player = _getLineupSlot(fx, ctx);
     state.pickerCell.classList.remove('editing');
     if (player === null) {
       state.pickerCell.innerHTML = `<span>— missing —</span>`;
@@ -1349,7 +1458,8 @@ function closePicker() {
    AUDIT
    ========================================================================= */
 function logEdit(fx, ctx, oldCell, newCell) {
-  const provider = PROVIDERS.find(p => p.code === ctx.provider).name;
+  const providerObj = PROVIDERS.find(p => p.code === ctx.provider);
+  const provider = providerObj ? providerObj.name : 'SR Manual';
   const teamName = (ctx.side === 'home') ? fx.home : fx.away;
   const slotLabel = ctx.section === 'starters' ? `Starter #${ctx.slot+1}` : `Sub #${ctx.slot+1}`;
   const entry = {
@@ -1448,8 +1558,8 @@ document.addEventListener('keydown', (e) => {
           const squad = SQUADS[teamName];
           const player = squad.find(p => String(p.num) === first.dataset.num && p.name === first.dataset.name);
           if (player) {
-            const oldCell = fx.lineups[ctx.provider][ctx.side][ctx.section][ctx.slot];
-            fx.lineups[ctx.provider][ctx.side][ctx.section][ctx.slot] = player;
+            const oldCell = _getLineupSlot(fx, ctx);
+            _setLineupSlot(fx, ctx, player);
             if (!oldCell || oldCell.num !== player.num || oldCell.name !== player.name) {
               logEdit(fx, ctx, oldCell, player);
             }
